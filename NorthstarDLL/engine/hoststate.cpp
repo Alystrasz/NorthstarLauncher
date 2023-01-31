@@ -143,6 +143,7 @@ void, __fastcall, (CHostState* self))
 
 	g_pServerPresence->DestroyPresence();
 	g_pServerAuthentication->StopPlayerAuthServer();
+	g_pModManager->UnloadEnabledMods();
 
 	CHostState__State_GameShutdown(self);
 

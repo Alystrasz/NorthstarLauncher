@@ -762,6 +762,11 @@ void ModManager::UnloadMods()
 	m_LoadedMods.clear();
 }
 
+void ModManager::UnloadEnabledMods()
+{
+	spdlog::info("Unloading enabled mods.");
+}
+
 std::string ModManager::NormaliseModFilePath(const fs::path path)
 {
 	std::string str = path.lexically_normal().string();

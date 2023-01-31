@@ -150,6 +150,7 @@ class ModManager
 	ModManager();
 	void LoadMods();
 	void UnloadMods();
+	void UnloadEnabledMods();
 	std::string NormaliseModFilePath(const fs::path path);
 	void CompileAssetsForFile(const char* filename);
 
