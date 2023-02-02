@@ -135,6 +135,8 @@ class ModManager
 	bool m_bHasLoadedMods = false;
 	bool m_bHasEnabledModsCfg;
 	rapidjson_document m_EnabledModsCfg;
+	void LoadMod(Mod mod, bool remountVPKs);
+
 
 	// precalculated hashes
 	size_t m_hScriptsRsonHash;

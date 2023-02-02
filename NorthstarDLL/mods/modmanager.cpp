@@ -442,233 +442,7 @@ void ModManager::LoadMods()
 		if (!mod.m_bEnabled)
 			continue;
 
-		// register convars
-		// for reloads, this is sorta barebones, when we have a good findconvar method, we could probably reset flags and stuff on
-		// preexisting convars note: we don't delete convars if they already exist because they're used for script stuff, unfortunately this
-		// causes us to leak memory on reload, but not much, potentially find a way to not do this at some point
-		for (ModConVar* convar : mod.ConVars)
-		{
-			// make sure convar isn't registered yet, unsure if necessary but idk what
-			// behaviour is for defining same convar multiple times
-			if (!R2::g_pCVar->FindVar(convar->Name.c_str()))
-			{
-				new ConVar(convar->Name.c_str(), convar->DefaultValue.c_str(), convar->Flags, convar->HelpString.c_str());
-			}
-		}
-
-		for (ModConCommand* command : mod.ConCommands)
-		{
-			// make sure command isnt't registered multiple times.
-			if (!R2::g_pCVar->FindCommand(command->Name.c_str()))
-			{
-				ConCommand* newCommand = new ConCommand();
-				std::string funcName = command->Function;
-				RegisterConCommand(command->Name.c_str(), ModConCommandCallback, command->HelpString.c_str(), command->Flags);
-			}
-		}
-
-		// read vpk paths
-		if (fs::exists(mod.m_ModDirectory / "vpk"))
-		{
-			// read vpk cfg
-			std::ifstream vpkJsonStream(mod.m_ModDirectory / "vpk/vpk.json");
-			std::stringstream vpkJsonStringStream;
-
-			bool bUseVPKJson = false;
-			rapidjson::Document dVpkJson;
-
-			if (!vpkJsonStream.fail())
-			{
-				while (vpkJsonStream.peek() != EOF)
-					vpkJsonStringStream << (char)vpkJsonStream.get();
-
-				vpkJsonStream.close();
-				dVpkJson.Parse<rapidjson::ParseFlag::kParseCommentsFlag | rapidjson::ParseFlag::kParseTrailingCommasFlag>(
-					vpkJsonStringStream.str().c_str());
-
-				bUseVPKJson = !dVpkJson.HasParseError() && dVpkJson.IsObject();
-			}
-
-			for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "vpk"))
-			{
-				// a bunch of checks to make sure we're only adding dir vpks and their paths are good
-				// note: the game will literally only load vpks with the english prefix
-				if (fs::is_regular_file(file) && file.path().extension() == ".vpk" &&
-					file.path().string().find("english") != std::string::npos &&
-					file.path().string().find(".bsp.pak000_dir") != std::string::npos)
-				{
-					std::string formattedPath = file.path().filename().string();
-
-					// this really fucking sucks but it'll work
-					std::string vpkName = formattedPath.substr(strlen("english"), formattedPath.find(".bsp") - 3);
-
-					ModVPKEntry& modVpk = mod.Vpks.emplace_back();
-					modVpk.m_bAutoLoad = !bUseVPKJson || (dVpkJson.HasMember("Preload") && dVpkJson["Preload"].IsObject() &&
-														  dVpkJson["Preload"].HasMember(vpkName) && dVpkJson["Preload"][vpkName].IsTrue());
-					modVpk.m_sVpkPath = (file.path().parent_path() / vpkName).string();
-
-					if (m_bHasLoadedMods && modVpk.m_bAutoLoad)
-						(*R2::g_pFilesystem)->m_vtable->MountVPK(*R2::g_pFilesystem, vpkName.c_str());
-				}
-			}
-		}
-
-		// read rpak paths
-		if (fs::exists(mod.m_ModDirectory / "paks"))
-		{
-			// read rpak cfg
-			std::ifstream rpakJsonStream(mod.m_ModDirectory / "paks/rpak.json");
-			std::stringstream rpakJsonStringStream;
-
-			bool bUseRpakJson = false;
-			rapidjson::Document dRpakJson;
-
-			if (!rpakJsonStream.fail())
-			{
-				while (rpakJsonStream.peek() != EOF)
-					rpakJsonStringStream << (char)rpakJsonStream.get();
-
-				rpakJsonStream.close();
-				dRpakJson.Parse<rapidjson::ParseFlag::kParseCommentsFlag | rapidjson::ParseFlag::kParseTrailingCommasFlag>(
-					rpakJsonStringStream.str().c_str());
-
-				bUseRpakJson = !dRpakJson.HasParseError() && dRpakJson.IsObject();
-			}
-
-			// read pak aliases
-			if (bUseRpakJson && dRpakJson.HasMember("Aliases") && dRpakJson["Aliases"].IsObject())
-			{
-				for (rapidjson::Value::ConstMemberIterator iterator = dRpakJson["Aliases"].MemberBegin();
-					 iterator != dRpakJson["Aliases"].MemberEnd();
-					 iterator++)
-				{
-					if (!iterator->name.IsString() || !iterator->value.IsString())
-						continue;
-
-					mod.RpakAliases.insert(std::make_pair(iterator->name.GetString(), iterator->value.GetString()));
-				}
-			}
-
-			for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "paks"))
-			{
-				// ensure we're only loading rpaks
-				if (fs::is_regular_file(file) && file.path().extension() == ".rpak")
-				{
-					std::string pakName(file.path().filename().string());
-
-					ModRpakEntry& modPak = mod.Rpaks.emplace_back();
-					modPak.m_bAutoLoad =
-						!bUseRpakJson || (dRpakJson.HasMember("Preload") && dRpakJson["Preload"].IsObject() &&
-										  dRpakJson["Preload"].HasMember(pakName) && dRpakJson["Preload"][pakName].IsTrue());
-
-					// postload things
-					if (!bUseRpakJson ||
-						(dRpakJson.HasMember("Postload") && dRpakJson["Postload"].IsObject() && dRpakJson["Postload"].HasMember(pakName)))
-						modPak.m_sLoadAfterPak = dRpakJson["Postload"][pakName].GetString();
-
-					modPak.m_sPakName = pakName;
-
-					// read header of file and get the starpak paths
-					// this is done here as opposed to on starpak load because multiple rpaks can load a starpak
-					// and there is seemingly no good way to tell which rpak is causing the load of a starpak :/
-
-					std::ifstream rpakStream(file.path(), std::ios::binary);
-
-					// seek to the point in the header where the starpak reference size is
-					rpakStream.seekg(0x38, std::ios::beg);
-					int starpaksSize = 0;
-					rpakStream.read((char*)&starpaksSize, 2);
-
-					// seek to just after the header
-					rpakStream.seekg(0x58, std::ios::beg);
-					// read the starpak reference(s)
-					std::vector<char> buf(starpaksSize);
-					rpakStream.read(buf.data(), starpaksSize);
-
-					rpakStream.close();
-
-					// split the starpak reference(s) into strings to hash
-					std::string str = "";
-					for (int i = 0; i < starpaksSize; i++)
-					{
-						// if the current char is null, that signals the end of the current starpak path
-						if (buf[i] != 0x00)
-						{
-							str += buf[i];
-						}
-						else
-						{
-							// only add the string we are making if it isnt empty
-							if (!str.empty())
-							{
-								mod.StarpakPaths.push_back(STR_HASH(str));
-								spdlog::info("Mod {} registered starpak '{}'", mod.Name, str);
-								str = "";
-							}
-						}
-					}
-
-					// not using atm because we need to resolve path to rpak
-					// if (m_hasLoadedMods && modPak.m_bAutoLoad)
-					//	g_pPakLoadManager->LoadPakAsync(pakName.c_str());
-				}
-			}
-		}
-
-		// read keyvalues paths
-		if (fs::exists(mod.m_ModDirectory / "keyvalues"))
-		{
-			for (fs::directory_entry file : fs::recursive_directory_iterator(mod.m_ModDirectory / "keyvalues"))
-			{
-				if (fs::is_regular_file(file))
-				{
-					std::string kvStr =
-						g_pModManager->NormaliseModFilePath(file.path().lexically_relative(mod.m_ModDirectory / "keyvalues"));
-					mod.KeyValues.emplace(STR_HASH(kvStr), kvStr);
-				}
-			}
-		}
-
-		// read pdiff
-		if (fs::exists(mod.m_ModDirectory / "mod.pdiff"))
-		{
-			std::ifstream pdiffStream(mod.m_ModDirectory / "mod.pdiff");
-
-			if (!pdiffStream.fail())
-			{
-				std::stringstream pdiffStringStream;
-				while (pdiffStream.peek() != EOF)
-					pdiffStringStream << (char)pdiffStream.get();
-
-				pdiffStream.close();
-
-				mod.Pdiff = pdiffStringStream.str();
-			}
-		}
-
-		// read bink video paths
-		if (fs::exists(mod.m_ModDirectory / "media"))
-		{
-			for (fs::directory_entry file : fs::recursive_directory_iterator(mod.m_ModDirectory / "media"))
-				if (fs::is_regular_file(file) && file.path().extension() == ".bik")
-					mod.BinkVideos.push_back(file.path().filename().string());
-		}
-
-		// try to load audio
-		if (fs::exists(mod.m_ModDirectory / "audio"))
-		{
-			for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "audio"))
-			{
-				if (fs::is_regular_file(file) && file.path().extension().string() == ".json")
-				{
-					if (!g_CustomAudioManager.TryLoadAudioOverride(file.path()))
-					{
-						spdlog::warn("Mod {} has an invalid audio def {}", mod.Name, file.path().filename().string());
-						continue;
-					}
-				}
-			}
-		}
+		LoadMod(mod, m_bHasLoadedMods);
 	}
 
 	// in a seperate loop because we register mod files in reverse order, since mods loaded later should have their files prioritised
@@ -722,6 +496,235 @@ void ModManager::LoadMods()
 	g_pMasterServerManager->m_sOwnModInfoJson = std::string(buffer.GetString());
 
 	m_bHasLoadedMods = true;
+}
+
+void ModManager::LoadMod(Mod mod, bool remountVPKs)
+{
+	// register convars
+	// for reloads, this is sorta barebones, when we have a good findconvar method, we could probably reset flags and stuff on
+	// preexisting convars note: we don't delete convars if they already exist because they're used for script stuff, unfortunately this
+	// causes us to leak memory on reload, but not much, potentially find a way to not do this at some point
+	for (ModConVar* convar : mod.ConVars)
+	{
+		// make sure convar isn't registered yet, unsure if necessary but idk what
+		// behaviour is for defining same convar multiple times
+		if (!R2::g_pCVar->FindVar(convar->Name.c_str()))
+		{
+			new ConVar(convar->Name.c_str(), convar->DefaultValue.c_str(), convar->Flags, convar->HelpString.c_str());
+		}
+	}
+
+	for (ModConCommand* command : mod.ConCommands)
+	{
+		// make sure command isnt't registered multiple times.
+		if (!R2::g_pCVar->FindCommand(command->Name.c_str()))
+		{
+			ConCommand* newCommand = new ConCommand();
+			std::string funcName = command->Function;
+			RegisterConCommand(command->Name.c_str(), ModConCommandCallback, command->HelpString.c_str(), command->Flags);
+		}
+	}
+
+	// read vpk paths
+	if (fs::exists(mod.m_ModDirectory / "vpk"))
+	{
+		// read vpk cfg
+		std::ifstream vpkJsonStream(mod.m_ModDirectory / "vpk/vpk.json");
+		std::stringstream vpkJsonStringStream;
+
+		bool bUseVPKJson = false;
+		rapidjson::Document dVpkJson;
+
+		if (!vpkJsonStream.fail())
+		{
+			while (vpkJsonStream.peek() != EOF)
+				vpkJsonStringStream << (char)vpkJsonStream.get();
+
+			vpkJsonStream.close();
+			dVpkJson.Parse<rapidjson::ParseFlag::kParseCommentsFlag | rapidjson::ParseFlag::kParseTrailingCommasFlag>(
+				vpkJsonStringStream.str().c_str());
+
+			bUseVPKJson = !dVpkJson.HasParseError() && dVpkJson.IsObject();
+		}
+
+		for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "vpk"))
+		{
+			// a bunch of checks to make sure we're only adding dir vpks and their paths are good
+			// note: the game will literally only load vpks with the english prefix
+			if (fs::is_regular_file(file) && file.path().extension() == ".vpk" &&
+				file.path().string().find("english") != std::string::npos &&
+				file.path().string().find(".bsp.pak000_dir") != std::string::npos)
+			{
+				std::string formattedPath = file.path().filename().string();
+
+				// this really fucking sucks but it'll work
+				std::string vpkName = formattedPath.substr(strlen("english"), formattedPath.find(".bsp") - 3);
+
+				ModVPKEntry& modVpk = mod.Vpks.emplace_back();
+				modVpk.m_bAutoLoad = !bUseVPKJson || (dVpkJson.HasMember("Preload") && dVpkJson["Preload"].IsObject() &&
+													  dVpkJson["Preload"].HasMember(vpkName) && dVpkJson["Preload"][vpkName].IsTrue());
+				modVpk.m_sVpkPath = (file.path().parent_path() / vpkName).string();
+
+				if (remountVPKs && modVpk.m_bAutoLoad)
+					(*R2::g_pFilesystem)->m_vtable->MountVPK(*R2::g_pFilesystem, vpkName.c_str());
+			}
+		}
+	}
+
+	// read rpak paths
+	if (fs::exists(mod.m_ModDirectory / "paks"))
+	{
+		// read rpak cfg
+		std::ifstream rpakJsonStream(mod.m_ModDirectory / "paks/rpak.json");
+		std::stringstream rpakJsonStringStream;
+
+		bool bUseRpakJson = false;
+		rapidjson::Document dRpakJson;
+
+		if (!rpakJsonStream.fail())
+		{
+			while (rpakJsonStream.peek() != EOF)
+				rpakJsonStringStream << (char)rpakJsonStream.get();
+
+			rpakJsonStream.close();
+			dRpakJson.Parse<rapidjson::ParseFlag::kParseCommentsFlag | rapidjson::ParseFlag::kParseTrailingCommasFlag>(
+				rpakJsonStringStream.str().c_str());
+
+			bUseRpakJson = !dRpakJson.HasParseError() && dRpakJson.IsObject();
+		}
+
+		// read pak aliases
+		if (bUseRpakJson && dRpakJson.HasMember("Aliases") && dRpakJson["Aliases"].IsObject())
+		{
+			for (rapidjson::Value::ConstMemberIterator iterator = dRpakJson["Aliases"].MemberBegin();
+				 iterator != dRpakJson["Aliases"].MemberEnd();
+				 iterator++)
+			{
+				if (!iterator->name.IsString() || !iterator->value.IsString())
+					continue;
+
+				mod.RpakAliases.insert(std::make_pair(iterator->name.GetString(), iterator->value.GetString()));
+			}
+		}
+
+		for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "paks"))
+		{
+			// ensure we're only loading rpaks
+			if (fs::is_regular_file(file) && file.path().extension() == ".rpak")
+			{
+				std::string pakName(file.path().filename().string());
+
+				ModRpakEntry& modPak = mod.Rpaks.emplace_back();
+				modPak.m_bAutoLoad = !bUseRpakJson || (dRpakJson.HasMember("Preload") && dRpakJson["Preload"].IsObject() &&
+													   dRpakJson["Preload"].HasMember(pakName) && dRpakJson["Preload"][pakName].IsTrue());
+
+				// postload things
+				if (!bUseRpakJson ||
+					(dRpakJson.HasMember("Postload") && dRpakJson["Postload"].IsObject() && dRpakJson["Postload"].HasMember(pakName)))
+					modPak.m_sLoadAfterPak = dRpakJson["Postload"][pakName].GetString();
+
+				modPak.m_sPakName = pakName;
+
+				// read header of file and get the starpak paths
+				// this is done here as opposed to on starpak load because multiple rpaks can load a starpak
+				// and there is seemingly no good way to tell which rpak is causing the load of a starpak :/
+
+				std::ifstream rpakStream(file.path(), std::ios::binary);
+
+				// seek to the point in the header where the starpak reference size is
+				rpakStream.seekg(0x38, std::ios::beg);
+				int starpaksSize = 0;
+				rpakStream.read((char*)&starpaksSize, 2);
+
+				// seek to just after the header
+				rpakStream.seekg(0x58, std::ios::beg);
+				// read the starpak reference(s)
+				std::vector<char> buf(starpaksSize);
+				rpakStream.read(buf.data(), starpaksSize);
+
+				rpakStream.close();
+
+				// split the starpak reference(s) into strings to hash
+				std::string str = "";
+				for (int i = 0; i < starpaksSize; i++)
+				{
+					// if the current char is null, that signals the end of the current starpak path
+					if (buf[i] != 0x00)
+					{
+						str += buf[i];
+					}
+					else
+					{
+						// only add the string we are making if it isnt empty
+						if (!str.empty())
+						{
+							mod.StarpakPaths.push_back(STR_HASH(str));
+							spdlog::info("Mod {} registered starpak '{}'", mod.Name, str);
+							str = "";
+						}
+					}
+				}
+
+				// not using atm because we need to resolve path to rpak
+				// if (m_hasLoadedMods && modPak.m_bAutoLoad)
+				//	g_pPakLoadManager->LoadPakAsync(pakName.c_str());
+			}
+		}
+	}
+
+	// read keyvalues paths
+	if (fs::exists(mod.m_ModDirectory / "keyvalues"))
+	{
+		for (fs::directory_entry file : fs::recursive_directory_iterator(mod.m_ModDirectory / "keyvalues"))
+		{
+			if (fs::is_regular_file(file))
+			{
+				std::string kvStr = g_pModManager->NormaliseModFilePath(file.path().lexically_relative(mod.m_ModDirectory / "keyvalues"));
+				mod.KeyValues.emplace(STR_HASH(kvStr), kvStr);
+			}
+		}
+	}
+
+	// read pdiff
+	if (fs::exists(mod.m_ModDirectory / "mod.pdiff"))
+	{
+		std::ifstream pdiffStream(mod.m_ModDirectory / "mod.pdiff");
+
+		if (!pdiffStream.fail())
+		{
+			std::stringstream pdiffStringStream;
+			while (pdiffStream.peek() != EOF)
+				pdiffStringStream << (char)pdiffStream.get();
+
+			pdiffStream.close();
+
+			mod.Pdiff = pdiffStringStream.str();
+		}
+	}
+
+	// read bink video paths
+	if (fs::exists(mod.m_ModDirectory / "media"))
+	{
+		for (fs::directory_entry file : fs::recursive_directory_iterator(mod.m_ModDirectory / "media"))
+			if (fs::is_regular_file(file) && file.path().extension() == ".bik")
+				mod.BinkVideos.push_back(file.path().filename().string());
+	}
+
+	// try to load audio
+	if (fs::exists(mod.m_ModDirectory / "audio"))
+	{
+		for (fs::directory_entry file : fs::directory_iterator(mod.m_ModDirectory / "audio"))
+		{
+			if (fs::is_regular_file(file) && file.path().extension().string() == ".json")
+			{
+				if (!g_CustomAudioManager.TryLoadAudioOverride(file.path()))
+				{
+					spdlog::warn("Mod {} has an invalid audio def {}", mod.Name, file.path().filename().string());
+					continue;
+				}
+			}
+		}
+	}
 }
 
 void ModManager::UnloadMods()
