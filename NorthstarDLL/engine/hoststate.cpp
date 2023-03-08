@@ -133,6 +133,10 @@ void, __fastcall, (CHostState* self))
 	g_pServerPresence->SetMap(g_pHostState->m_levelName);
 }
 
+// TODO: due to exception in code for singleplayer (see connect command) this func will never run
+// when connect is ran on the ip localhost, while connected to a local listen server
+// i dont really care
+
 // clang-format off
 AUTOHOOK(CHostState__State_GameShutdown, engine.dll + 0x16E640,
 void, __fastcall, (CHostState* self))
@@ -160,6 +164,17 @@ void, __fastcall, (CHostState* self))
 
 		sLastMode.clear();
 	}
+
+	// TODO: this does work, but will also be called in places it shouldn't be (e.g. immediately after reloading mods before we actually join a server, so all remote mods are lost)
+	// exclusively for reload after leave though, this does work!
+	/*
+	* 	if (g_pModManager->IsUsingRemoteMods())
+	*	{
+	*	g_pModManager->ClearAllowedRemoteMods();
+	*	g_pModManager->LoadMods(true, true);
+	*	}
+	*/
+
 }
 
 // clang-format off

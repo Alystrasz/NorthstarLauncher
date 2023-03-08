@@ -187,6 +187,9 @@
     <Filter Include="Header Files\mods\verified">
       <UniqueIdentifier>{8b2cefce-037f-4c76-af2d-bbbd85588e3b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\mods\reload">
+      <UniqueIdentifier>{f7aff0ef-a51c-4053-866a-4e5e3db71fce}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\httplib.h">
@@ -1270,9 +1273,6 @@
     <ClCompile Include="mods\compiled\modkeyvalues.cpp">
       <Filter>Source Files\mods\compiled</Filter>
     </ClCompile>
-    <ClCompile Include="mods\compiled\modpdef.cpp">
-      <Filter>Source Files\mods\compiled</Filter>
-    </ClCompile>
     <ClCompile Include="mods\compiled\modscriptsrson.cpp">
       <Filter>Source Files\mods\compiled</Filter>
     </ClCompile>
@@ -1473,6 +1473,15 @@
     </ClCompile>
     <ClCompile Include="server\alltalk.cpp">
       <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="mods\reload\reloadmodweapons.cpp">
+      <Filter>Source Files\mods\reload</Filter>
+    </ClCompile>
+    <ClCompile Include="mods\reload\reloadmodweapons_misc.cpp">
+      <Filter>Source Files\mods\reload</Filter>
+    </ClCompile>
+    <ClCompile Include="reloadmodturrets.cpp">
+      <Filter>Source Files\mods\reload</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
