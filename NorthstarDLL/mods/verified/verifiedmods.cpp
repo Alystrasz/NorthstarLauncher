@@ -66,6 +66,12 @@ const char* modsTestString =
 	"\"DependencyPrefix\": \"Juicys_Emporium-Zircon_Spitfire\","
 	"\"Versions\" : ["
 	"{ \"Version\": \"1.0.0\", \"Checksum\": \"b742d09832a97bdbbd6b9184884712ef4093e3b4ba29eae40b40db26308ba42e\" }"
+	"]},"
+
+	"\"bobthebob.TestDownloadableMod\": {"
+	"\"DependencyPrefix\": \"Alystrasz-bobthebob_TestDownloadableMod\","
+	"\"Versions\" : ["
+	"{ \"Version\": \"0.0.3\", \"Checksum\": \"b8f0559716bfa3d28a3024eb1213d82f6ea723abe7a8fe7b63e29b463e6c45ac\" }"
 	"]}"
 	"}";
 
@@ -225,6 +231,12 @@ void DownloadMod(char* modName, char* modVersion)
 			CURLcode result;
 
 			std::string url = "https://gcdn.thunderstore.io/live/repository/packages/" + archiveName;
+			// TODO this is done for testing purposes, and should be removed before merge.
+			if (strcmp(archiveName.c_str(), "Alystrasz-bobthebob_TestDownloadableMod-0.0.3.zip") == 0)
+			{
+				url = "https://gcdn.thunderstore.io/beta/repository/packages/" + archiveName;
+			}
+
 			spdlog::info("Downloading mod:");
 			spdlog::info("    => from {}", url);
 			spdlog::info("    => to {}", downloadPath.generic_string());
