@@ -75,6 +75,9 @@ const char* modsTestString =
 	"]}"
 	"}";
 
+// This list holds names of remote mods that will be reloaded
+std::unordered_set<std::string> allowedRemoteMods = {};
+
 /*
 ███╗   ███╗███████╗████████╗██╗  ██╗ ██████╗ ██████╗ ███████╗
 ████╗ ████║██╔════╝╚══██╔══╝██║  ██║██╔═══██╗██╔══██╗██╔════╝
@@ -501,6 +504,19 @@ ADD_SQFUNC("array<float>", NSGetCurrentDownloadProgress, "", "", ScriptContext::
 	}
 
 	return SQRESULT_NOTNULL;
+}
+
+ADD_SQFUNC("void", NSAllowRemoteMod, "string modName", "", ScriptContext::UI)
+{
+	const SQChar* modName = g_pSquirrel<context>->getstring(sqvm, 1);
+	allowedRemoteMods.insert(modName);
+	return SQRESULT_NULL;
+}
+
+ADD_SQFUNC("void", NSSetAllowedRemoteMods, "", "", ScriptContext::UI)
+{
+	g_pModManager->SetAllowedRemoteMods(allowedRemoteMods);
+	return SQRESULT_NULL;
 }
 
 ADD_SQFUNC("void", NSDownloadMod, "string modName, string modVersion", "", ScriptContext::UI)
