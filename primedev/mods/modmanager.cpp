@@ -667,7 +667,7 @@ void ModManager::LoadMod(Mod& mod)
 
 				ModVPKEntry& modVpk = mod.Vpks.emplace_back();
 				modVpk.m_bAutoLoad = !bUseVPKJson || (dVpkJson.HasMember("Preload") && dVpkJson["Preload"].IsObject() &&
-														dVpkJson["Preload"].HasMember(vpkName) && dVpkJson["Preload"][vpkName].IsTrue());
+													  dVpkJson["Preload"].HasMember(vpkName) && dVpkJson["Preload"][vpkName].IsTrue());
 				modVpk.m_sVpkPath = (file.path().parent_path() / vpkName).string();
 
 				if (m_bHasLoadedMods && modVpk.m_bAutoLoad)
@@ -702,8 +702,8 @@ void ModManager::LoadMod(Mod& mod)
 		if (bUseRpakJson && dRpakJson.HasMember("Aliases") && dRpakJson["Aliases"].IsObject())
 		{
 			for (rapidjson::Value::ConstMemberIterator iterator = dRpakJson["Aliases"].MemberBegin();
-					iterator != dRpakJson["Aliases"].MemberEnd();
-					iterator++)
+				 iterator != dRpakJson["Aliases"].MemberEnd();
+				 iterator++)
 			{
 				if (!iterator->name.IsString() || !iterator->value.IsString())
 					continue;
@@ -720,9 +720,8 @@ void ModManager::LoadMod(Mod& mod)
 				std::string pakName(file.path().filename().string());
 
 				ModRpakEntry& modPak = mod.Rpaks.emplace_back();
-				modPak.m_bAutoLoad =
-					!bUseRpakJson || (dRpakJson.HasMember("Preload") && dRpakJson["Preload"].IsObject() &&
-										dRpakJson["Preload"].HasMember(pakName) && dRpakJson["Preload"][pakName].IsTrue());
+				modPak.m_bAutoLoad = !bUseRpakJson || (dRpakJson.HasMember("Preload") && dRpakJson["Preload"].IsObject() &&
+													   dRpakJson["Preload"].HasMember(pakName) && dRpakJson["Preload"][pakName].IsTrue());
 
 				// postload things
 				if (!bUseRpakJson ||
@@ -785,8 +784,7 @@ void ModManager::LoadMod(Mod& mod)
 		{
 			if (fs::is_regular_file(file))
 			{
-				std::string kvStr =
-					g_pModManager->NormaliseModFilePath(file.path().lexically_relative(mod.m_ModDirectory / "keyvalues"));
+				std::string kvStr = g_pModManager->NormaliseModFilePath(file.path().lexically_relative(mod.m_ModDirectory / "keyvalues"));
 				mod.KeyValues.emplace(STR_HASH(kvStr), kvStr);
 			}
 		}
