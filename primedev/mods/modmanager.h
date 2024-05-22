@@ -167,6 +167,7 @@ public:
 
 public:
 	ModManager();
+	void ModManager::LoadMod(Mod& mod);
 	void LoadMods();
 	void UnloadMods();
 	std::string NormaliseModFilePath(const fs::path path);
