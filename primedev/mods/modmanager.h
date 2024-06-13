@@ -169,6 +169,18 @@ public:
 	ModManager();
 	void LoadMods();
 	void UnloadMods();
+
+	/**
+	 * Disables all remote mods.
+	 *
+	 * Goes over all mods, and disables any remote mod that is currently enabled.
+	 * If any mod was disabled during mods iteration, mods will then be reloaded
+	 * invoking `LoadMods`; nothing will happen otherwise.
+	 * 
+	 * @returns nothing
+	 */
+	void UnloadAllRemoteMods();
+
 	std::string NormaliseModFilePath(const fs::path path);
 	void CompileAssetsForFile(const char* filename);
 
