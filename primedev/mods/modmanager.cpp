@@ -1080,6 +1080,27 @@ void ModManager::UnloadMods()
 	m_LoadedMods.clear();
 }
 
+void ModManager::UnloadAllRemoteMods()
+{
+	bool needsModsReload = false;
+
+	// Disable any remote mod that is currently enabled
+	for (Mod& mod : g_pModManager->m_LoadedMods)
+	{
+		if (mod.m_bEnabled && mod.m_bIsRemote)
+		{
+			mod.m_bEnabled = false;
+			needsModsReload = true;
+		}
+	}
+
+	// Only reload mods if needed (might be costly when having a lot of mods)
+	if (needsModsReload)
+	{
+		LoadMods();
+	}
+}
+
 std::string ModManager::NormaliseModFilePath(const fs::path path)
 {
 	std::string str = path.lexically_normal().string();
