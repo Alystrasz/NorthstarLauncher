@@ -176,7 +176,7 @@ public:
 	 * Goes over all mods, and disables any remote mod that is currently enabled.
 	 * If any mod was disabled during mods iteration, mods will then be reloaded
 	 * invoking `LoadMods`; nothing will happen otherwise.
-	 * 
+	 *
 	 * @returns nothing
 	 */
 	void UnloadAllRemoteMods();
