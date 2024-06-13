@@ -151,6 +151,9 @@ void, __fastcall, (CHostState* self))
 
 		sLastMode.clear();
 	}
+
+	// disable remote mods
+	g_pModManager->UnloadAllRemoteMods();
 }
 
 // clang-format off
