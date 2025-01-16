@@ -221,6 +221,28 @@ void ModManager::LoadMods()
 						g_pFilesystem->m_vtable->MountVPK(g_pFilesystem, vpkName.c_str());
 				}
 			}
+
+			// Allow loading SP VPKs
+			if (bUseVPKJson)
+			{
+				bool bHasEntries = dVpkJson.HasMember("Aliases") && dVpkJson["Aliases"].IsObject();
+				if (bHasEntries)
+				{
+					rapidjson::Value& keys = dVpkJson["Aliases"];
+
+					for (rapidjson::Value::ConstMemberIterator iter = keys.MemberBegin(); iter != keys.MemberEnd(); ++iter)
+					{
+						bool bIsVpkRequired = iter->value.GetBool(); // todo: Protect
+						if (bIsVpkRequired)
+						{
+							std::string vpkName = iter->name.GetString(); // todo: Protect
+							fs::path fullVpkPath = fs::path(GetNorthstarPrefix()).parent_path() / "vpk" / vpkName;
+
+							// todo: Load VPK
+						}
+					}
+				}
+			}
 		}
 
 		// read rpak paths
