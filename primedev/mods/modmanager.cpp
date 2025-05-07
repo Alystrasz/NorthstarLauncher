@@ -625,6 +625,12 @@ void ModManager::ExportModsConfigurationToFile()
 
 	for (Mod& mod : m_LoadedMods)
 	{
+		// Do not write remote mods to enabledmods.json
+		if (mod.m_bIsRemote)
+		{
+			continue;
+		}
+
 		// write to m_enabledModsCfg
 		// should we be doing this here or should scripts be doing this manually?
 		// main issue with doing this here is when we reload mods for connecting to a server, we write enabled mods, which isn't necessarily
