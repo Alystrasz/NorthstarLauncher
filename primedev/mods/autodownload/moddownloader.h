@@ -197,5 +197,5 @@ public:
 	 * @param archiveUrl URL of the zip archive to be downloaded
 	 * @returns nothing
 	 **/
-	void DownloadModFromURL(std::string_view archiveUrl);
+	void DownloadModFromURL(std::string archiveUrl);
 };
